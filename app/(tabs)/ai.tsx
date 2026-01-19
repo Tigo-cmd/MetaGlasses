@@ -3,12 +3,12 @@ import { View, Text, StyleSheet, FlatList, TextInput, Pressable, KeyboardAvoidin
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAI } from '@/hooks/useAI';
-import { ChatBubble, VoiceButton } from '@/components';
+import { ChatBubble, VoiceButton, OfflineIndicator } from '@/components';
 import { theme } from '@/constants/theme';
 
 export default function AIScreen() {
   const insets = useSafeAreaInsets();
-  const { messages, processing, listening, sendMessage, startListening, stopListening } = useAI();
+  const { messages, processing, listening, loading, isOnline, sendMessage, startListening, stopListening, clearHistory } = useAI();
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
@@ -23,7 +23,11 @@ export default function AIScreen() {
     
     const text = inputText.trim();
     setInputText('');
-    await sendMessage(text);
+    try {
+      await sendMessage(text);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
   };
 
   const handleVoicePress = () => {
@@ -34,6 +38,20 @@ export default function AIScreen() {
     }
   };
 
+  const handleClearHistory = () => {
+    clearHistory();
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.centerContent}>
+          <Text style={styles.loadingText}>Loading chat...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -42,12 +60,22 @@ export default function AIScreen() {
     >
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <MaterialIcons name="auto-awesome" size={24} color={theme.colors.ai} />
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIcon}>
+              <MaterialIcons name="auto-awesome" size={24} color={theme.colors.ai} />
+            </View>
+            <View>
+              <Text style={styles.title}>AI Assistant</Text>
+              <Text style={styles.subtitle}>Powered by OnSpace AI</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.title}>AI Assistant</Text>
-            <Text style={styles.subtitle}>Powered by Meta AI</Text>
+          <View style={styles.headerRight}>
+            <OfflineIndicator isOnline={isOnline} />
+            {messages.length > 0 && (
+              <Pressable onPress={handleClearHistory} style={styles.clearButton}>
+                <MaterialIcons name="delete-outline" size={20} color={theme.colors.textSecondary} />
+              </Pressable>
+            )}
           </View>
         </View>
 
@@ -76,7 +104,17 @@ export default function AIScreen() {
             ref={flatListRef}
             data={messages}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <ChatBubble message={item} />}
+            renderItem={({ item }) => (
+              <View>
+                <ChatBubble message={item} />
+                {!item.synced && (
+                  <View style={styles.unsyncedBadge}>
+                    <MaterialIcons name="schedule" size={12} color={theme.colors.textTertiary} />
+                    <Text style={styles.unsyncedText}>Pending sync</Text>
+                  </View>
+                )}
+              </View>
+            )}
             contentContainerStyle={[
               styles.messageList,
               { paddingBottom: insets.bottom + 100 }
@@ -86,6 +124,14 @@ export default function AIScreen() {
         )}
 
         <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
+          {!isOnline && (
+            <View style={styles.offlineNotice}>
+              <MaterialIcons name="info-outline" size={16} color={theme.colors.textSecondary} />
+              <Text style={styles.offlineNoticeText}>
+                Messages will be sent when you are back online
+              </Text>
+            </View>
+          )}
           <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
@@ -125,9 +171,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerIcon: {
     width: 48,
@@ -144,6 +201,18 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  clearButton: {
+    padding: 8,
+  },
+  centerContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
     color: theme.colors.textSecondary,
   },
   emptyContainer: {
@@ -185,12 +254,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
   },
+  unsyncedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 4,
+    marginLeft: 12,
+  },
+  unsyncedText: {
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+  },
   inputContainer: {
     backgroundColor: theme.colors.surface,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  offlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: 8,
+  },
+  offlineNoticeText: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    flex: 1,
   },
   inputRow: {
     flexDirection: 'row',

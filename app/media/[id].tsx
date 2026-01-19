@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useGlasses } from '@/hooks/useGlasses';
-import { useAI } from '@/hooks/useAI';
 import { Button } from '@/components';
 import { theme } from '@/constants/theme';
 import { MediaItem } from '@/types';
+import { useAlert } from '@/template';
 
 export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { media } = useGlasses();
-  const { generateCaption } = useAI();
+  const { showAlert } = useAlert();
+  const { media, isOnline, analyzeMedia } = useGlasses();
   const [item, setItem] = useState<MediaItem | null>(null);
-  const [generatingCaption, setGeneratingCaption] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     const foundItem = media.find(m => m.id === id);
@@ -24,30 +24,28 @@ export default function MediaDetailScreen() {
     }
   }, [id, media]);
 
-  const handleGenerateCaption = async () => {
+  const handleAnalyze = async () => {
     if (!item) return;
-    
-    setGeneratingCaption(true);
-    try {
-      const caption = await generateCaption(item.uri);
-      setItem({ ...item, aiCaption: caption });
-    } catch (error) {
-      console.error('Failed to generate caption:', error);
-    } finally {
-      setGeneratingCaption(false);
-    }
-  };
 
-  const handleShare = async () => {
-    if (!item) return;
+    if (!isOnline) {
+      showAlert('Offline', 'AI analysis requires internet connection');
+      return;
+    }
     
+    setAnalyzing(true);
     try {
-      await Share.share({
-        message: `Check out this ${item.type} from my smart glasses!`,
-        url: item.uri,
-      });
+      const result = await analyzeMedia(item);
+      setItem(prev => prev ? { 
+        ...prev, 
+        aiCaption: result.caption, 
+        aiTags: result.tags 
+      } : null);
+      showAlert('Analysis Complete', 'AI caption and tags generated successfully');
     } catch (error) {
-      console.error('Share failed:', error);
+      console.error('Failed to analyze:', error);
+      showAlert('Analysis Failed', 'Could not analyze media. Please try again.');
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -91,6 +89,12 @@ export default function MediaDetailScreen() {
               {item.type === 'photo' ? 'Photo' : 'Video'}
               {item.duration && ` · ${item.duration}s`}
             </Text>
+            {item.localOnly && (
+              <View style={styles.localBadge}>
+                <MaterialIcons name="cloud-off" size={14} color={theme.colors.textSecondary} />
+                <Text style={styles.localText}>Local Only</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.metaRow}>
@@ -112,23 +116,28 @@ export default function MediaDetailScreen() {
                 <Text style={styles.captionLabel}>AI Description</Text>
               </View>
               <Text style={styles.captionText}>{item.aiCaption}</Text>
+              
+              {item.aiTags && item.aiTags.length > 0 && (
+                <View style={styles.tagsContainer}>
+                  {item.aiTags.map((tag, index) => (
+                    <View key={index} style={styles.tag}>
+                      <Text style={styles.tagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           ) : (
             <Button
-              title="Generate AI Caption"
-              onPress={handleGenerateCaption}
-              loading={generatingCaption}
+              title={analyzing ? 'Analyzing...' : 'Generate AI Analysis'}
+              onPress={handleAnalyze}
+              loading={analyzing}
               variant="outline"
               fullWidth
             />
           )}
 
           <View style={styles.actions}>
-            <Pressable style={styles.actionButton} onPress={handleShare}>
-              <MaterialIcons name="share" size={24} color={theme.colors.text} />
-              <Text style={styles.actionText}>Share</Text>
-            </Pressable>
-            
             <Pressable style={styles.actionButton}>
               <MaterialIcons name="download" size={24} color={theme.colors.text} />
               <Text style={styles.actionText}>Download</Text>
@@ -182,6 +191,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.text,
+    flex: 1,
+  },
+  localBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.sm,
+  },
+  localText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
   },
   metaRow: {
     flexDirection: 'row',
@@ -212,6 +235,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: theme.colors.text,
     lineHeight: 22,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  tag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.md,
+  },
+  tagText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.colors.primary,
   },
   actions: {
     flexDirection: 'row',
