@@ -20,10 +20,16 @@ export function useAI() {
       // Try to load from backend first if online
       const online = await offlineService.isOnline();
       if (online) {
-        const backendMessages = await backendService.fetchChatHistory(userId);
-        setMessages(backendMessages);
-        // Save to offline storage
-        await offlineService.saveMessages(backendMessages);
+        try {
+          const backendMessages = await backendService.fetchChatHistory(userId);
+          setMessages(backendMessages);
+          // Save to offline storage
+          await offlineService.saveMessages(backendMessages);
+        } catch (backendError) {
+          console.warn('[useAI] Failed to fetch chat history from backend, falling back to offline cache:', backendError);
+          const offlineMessages = await offlineService.getMessages();
+          setMessages(offlineMessages);
+        }
       } else {
         // Load from offline storage
         const offlineMessages = await offlineService.getMessages();

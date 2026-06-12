@@ -52,17 +52,27 @@ export function GlassesProvider({ children }: { children: React.ReactNode }) {
 
             const online = await offlineService.isOnline();
             if (online) {
-                const backendMedia = await backendService.fetchMedia(userId);
-                setMedia(backendMedia);
-                await offlineService.saveMedia(backendMedia);
-                setAlbums(organizeIntoAlbums(backendMedia));
+                try {
+                    const backendMedia = await backendService.fetchMedia(userId);
+                    setMedia(backendMedia);
+                    await offlineService.saveMedia(backendMedia);
+                    setAlbums(organizeIntoAlbums(backendMedia));
+                } catch (backendError) {
+                    console.warn('[GlassesContext] Failed to fetch media from backend, falling back to offline cache:', backendError);
+                    const offlineMedia = await offlineService.getMedia();
+                    setMedia(offlineMedia || []);
+                    setAlbums(organizeIntoAlbums(offlineMedia || []));
+                }
             } else {
                 const offlineMedia = await offlineService.getMedia();
                 setMedia(offlineMedia || []);
                 setAlbums(organizeIntoAlbums(offlineMedia || []));
             }
-        } catch (error) {
-            console.error('Failed to load initial data:', error);
+        } catch (error: any) {
+            console.error('Failed to load initial data:', error?.message || error);
+            if (error && typeof error === 'object') {
+                console.error('Detailed Error Object:', JSON.stringify(error, null, 2));
+            }
         } finally {
             if (showLoading) setLoading(false);
         }
@@ -145,6 +155,20 @@ export function GlassesProvider({ children }: { children: React.ReactNode }) {
         setAlbums(organizeIntoAlbums(media));
     }, [media]);
 
+    // Periodically refresh device status to show online/offline updates
+    useEffect(() => {
+        if (!isOnline) {
+            setDeviceStatus(prev => prev ? { ...prev, connected: false } : null);
+            return;
+        }
+
+        const interval = setInterval(async () => {
+            await refreshStatus();
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [isOnline, refreshStatus]);
+
     const syncMedia = useCallback(async () => {
         if (!user || syncing) return 0;
         setSyncing(true);
@@ -152,6 +176,9 @@ export function GlassesProvider({ children }: { children: React.ReactNode }) {
             await glassesService.syncMedia(user.id);
             await loadInitialData(false);
             return 1;
+        } catch (error) {
+            console.error('[GlassesContext] syncMedia failed:', error);
+            return 0;
         } finally {
             setSyncing(false);
         }

@@ -34,7 +34,7 @@ class TigoGroq:
             "When a user asks 'What am I seeing?', describe the surroundings vividly but briefly. "
             "When they ask to 'Take a picture', acknowledge the action and provide context if needed. "
             "You are also a conversational partner—reply to messages naturally through the app's chat interface. "
-            "Never provide dangerous physical advice. Always act as a reliable companion for the user's daily life."
+            "Never provide dangerous physical advice. Always act as a reliable companion for the user's daily life. be concise when neccessary do not say too much when you don't have to."
         )}
     ]
 
@@ -49,14 +49,23 @@ class TigoGroq:
             
         self.client = Groq(api_key=self._Apikey)
 
-    def get_response_from_ai(self, message: str):
+    def get_response_from_ai(self, message: str, history: list[dict[str, str]] = None):
         """returns response from the AI and messages to print to standard output"""
-        self.context.append({"role": "user", "content": message})
+        messages = [self.context[0]]
+        
+        if history:
+            messages.extend(history)
+            messages.append({"role": "user", "content": message})
+        else:
+            # Fallback to local in-memory context
+            messages.extend(self.context[1:])
+            self.context.append({"role": "user", "content": message})
+            messages.append({"role": "user", "content": message})
         
         # Using Llama 3.3 70B via Groq for high-speed wearable responses
         completion = self.client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=self.context,
+            messages=messages,
             temperature=0.7, # Slightly lower temperature for more consistent assistant behavior
             max_tokens=1024,
             top_p=1,
@@ -70,7 +79,9 @@ class TigoGroq:
             if content:
                 reply += content
                 
-        self.context.append({"role": "assistant", "content": reply})
+        if not history:
+            self.context.append({"role": "assistant", "content": reply})
+            
         return reply
 
     def store_retrive_context(self, filename: str):

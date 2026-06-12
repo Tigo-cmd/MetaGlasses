@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/template';
-import { MediaItem, AIMessage, Album } from '@/types';
+import { MediaItem, AIMessage, Album, DeviceStatus } from '@/types';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 
 const supabase = getSupabaseClient();
@@ -218,6 +218,26 @@ export const backendService = {
       console.error('sendDeviceCommand error:', error);
       throw error;
     }
+  },
+  async getDeviceStatus(deviceId: string = 'esp32_01'): Promise<DeviceStatus> {
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    try {
+      const response = await fetch(`${backendUrl}/device_status/${deviceId}`);
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (error) {
+      console.warn('Error fetching device status:', error);
+    }
+    return {
+      connected: false,
+      battery: 0,
+      storage: {
+        used: 0.0,
+        total: 0.0,
+      },
+      model: 'TIGOAI SmartGlasses',
+    };
   },
   supabase,
 };

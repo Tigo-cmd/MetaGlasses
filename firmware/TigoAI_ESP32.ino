@@ -1,6 +1,11 @@
 /**
- * TigoAI Smart Glasses Firmware
- * Target: ESP32-CAM or ESP32 with Camera & I2S Microphone/Speaker
+ * TigoAI Smart Glasses Firmware - Legacy/Unified Template
+ * 
+ * NOTE: For the production two-node architecture, please use:
+ *   - TigoAI_ESP32_C3.ino  (for the audio/control node)
+ *   - TigoAI_ESP32_CAM.ino (for the vision node)
+ * 
+ * Target: ESP32-S3 or unified board with Camera & I2S Microphone/Speaker
  * Author: Antigravity AI
  */
 
