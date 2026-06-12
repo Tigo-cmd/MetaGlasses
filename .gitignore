@@ -1,15 +1,34 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies & Package Managers
 node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
 
-# Expo
+# Python Virtual Environments & Build artifacts
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+
+# Expo & Mobile Frontend
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+.metro-health-check*
 
-# Native
+# iOS / Android Native Build files
 .kotlin/
 *.orig.*
 *.jks
@@ -18,22 +37,43 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
-# Metro
-.metro-health-check*
-
-# debug
+# Debug & Logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
-# macOS
+# OS Files
 .DS_Store
-*.pem
+Thumbs.db
 
-# local env files
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment & Secrets (NEVER commit these!)
+.env
 .env*.local
 
-# typescript
-*.tsbuildinfo
+# SmartGlasses Media & Temp Folders
+snapshots/
+uploads/
+**/snapshots/
+**/uploads/
 
-app-example
+# Media files
+*.wav
+*.mp3
+*.m4a
+*.pcm
+*.raw
+*.mp4
+*.avi
+*.mkv
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
