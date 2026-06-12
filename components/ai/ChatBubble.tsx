@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { AIMessage } from '@/types';
 import { theme } from '@/constants/theme';
 
@@ -10,6 +11,54 @@ interface ChatBubbleProps {
 
 export function ChatBubble({ message }: ChatBubbleProps) {
   const isUser = message.role === 'user';
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const soundRef = React.useRef<Audio.Sound | null>(null);
+
+  const handlePlayVoice = async () => {
+    if (!message.audioUrl) return;
+
+    try {
+      if (soundRef.current) {
+        if (isPlaying) {
+          await soundRef.current.pauseAsync();
+          setIsPlaying(false);
+        } else {
+          await soundRef.current.playAsync();
+          setIsPlaying(true);
+        }
+        return;
+      }
+
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+      const fullUrl = message.audioUrl.startsWith('http')
+        ? message.audioUrl
+        : `${backendUrl}${message.audioUrl}`;
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: fullUrl },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      setIsPlaying(true);
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          soundRef.current?.setPositionAsync(0);
+        }
+      });
+    } catch (error) {
+      console.error('Playback error:', error);
+    }
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, []);
 
   return (
     <View style={[styles.container, isUser ? styles.userContainer : styles.aiContainer]}>
@@ -18,20 +67,31 @@ export function ChatBubble({ message }: ChatBubbleProps) {
           <MaterialIcons name="auto-awesome" size={16} color={theme.colors.ai} />
         </View>
       )}
-      
+
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-        <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>
-          {message.content}
-        </Text>
-        
-        {!isUser && message.waveform && (
+        <View style={styles.bubbleHeader}>
+          <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>
+            {message.content}
+          </Text>
+          {!isUser && message.audioUrl && (
+            <Pressable onPress={handlePlayVoice} style={styles.playButton}>
+              <MaterialIcons
+                name={isPlaying ? "pause-circle" : "play-circle"}
+                size={24}
+                color={theme.colors.ai}
+              />
+            </Pressable>
+          )}
+        </View>
+
+        {!isUser && (message.waveform || isPlaying) && (
           <View style={styles.waveform}>
-            {message.waveform.slice(0, 15).map((value, index) => (
+            {(message.waveform || Array(15).fill(0.5)).slice(0, 15).map((value, index) => (
               <View
                 key={index}
                 style={[
                   styles.waveformBar,
-                  { height: value * 20 },
+                  { height: (isPlaying ? (Math.random() * 0.8 + 0.2) : value) * 20 },
                 ]}
               />
             ))}
@@ -84,6 +144,15 @@ const styles = StyleSheet.create({
   },
   aiText: {
     color: theme.colors.text,
+  },
+  bubbleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  playButton: {
+    marginLeft: 8,
   },
   waveform: {
     flexDirection: 'row',

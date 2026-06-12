@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Animated } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
-import LinearGradient from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface VoiceButtonProps {
   listening: boolean;

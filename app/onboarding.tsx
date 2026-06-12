@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components';
 import { theme } from '@/constants/theme';
 
@@ -10,7 +11,7 @@ const screens = [
   {
     image: require('@/assets/images/onboarding-1.png'),
     title: 'Connect Your Smart Glasses',
-    description: 'Seamlessly pair your Ray-Ban Stories and control them from your phone',
+    description: 'Seamlessly pair your TigoAI Glasses and control them from your phone',
   },
   {
     image: require('@/assets/images/onboarding-2.png'),
@@ -30,17 +31,17 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = Dimensions.get('window');
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < screens.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      localStorage.setItem('hasSeenOnboarding', 'true');
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
       router.replace('/(tabs)');
     }
   };
 
-  const handleSkip = () => {
-    localStorage.setItem('hasSeenOnboarding', 'true');
+  const handleSkip = async () => {
+    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
     router.replace('/(tabs)');
   };
 
@@ -80,7 +81,7 @@ export default function OnboardingScreen() {
             onPress={handleNext}
             fullWidth
           />
-          
+
           {!isLastScreen && (
             <Pressable onPress={handleSkip} style={styles.skipButton}>
               <Text style={styles.skipText}>Skip</Text>

@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
-import LinearGradient from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface CaptureButtonProps {
   onPress: () => void;
@@ -34,7 +34,7 @@ export function CaptureButton({ onPress, loading = false, icon = 'camera' }: Cap
           />
         </LinearGradient>
       </Pressable>
-      
+
       {loading && (
         <View style={styles.ring} />
       )}

@@ -19,8 +19,8 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const aiApiKey = Deno.env.get('ONSPACE_AI_API_KEY')!;
-    const aiBaseUrl = Deno.env.get('ONSPACE_AI_BASE_URL')!;
+    const aiApiKey = Deno.env.get('TIGOAI_AI_API_KEY')!;
+    const aiBaseUrl = Deno.env.get('TIGOAI_AI_BASE_URL')!;
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       { role: 'user', content: message }
     ];
 
-    // Call OnSpace AI
+    // Call TigoAI
     const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {

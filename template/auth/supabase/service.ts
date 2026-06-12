@@ -18,22 +18,22 @@ let isUpdatingUserInOTPFlow = false;
 
 const TIMEOUT_CONFIG = {
   AUTH_OPERATIONS: 10000,
-  DATA_QUERIES: 8000,  
+  DATA_QUERIES: 8000,
   SESSION_REFRESH: 5000,
   USER_UPDATE: 15000,
 };
 
 // Utility function to add timeout to any Promise with proper cleanup
 const withTimeout = <T>(
-  promise: Promise<T>, 
-  timeoutMs: number, 
+  promise: Promise<T>,
+  timeoutMs: number,
   operation: string = 'Operation'
 ): Promise<T> => {
   let timeoutId: NodeJS.Timeout;
-  
+
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error(`${operation} timeout after ${timeoutMs/1000} seconds`));
+      reject(new Error(`${operation} timeout after ${timeoutMs / 1000} seconds`));
     }, timeoutMs);
   });
 
@@ -44,9 +44,9 @@ const withTimeout = <T>(
 
 const isAuthError = (error: any): boolean => {
   if (error.message?.includes('timeout')) return false;
-  return error.status === 401 || 
-         error.status === 403 || 
-         error.message?.includes('invalid_token');
+  return error.status === 401 ||
+    error.status === 403 ||
+    error.message?.includes('invalid_token');
 };
 
 // Visibility monitoring logic - used to optimize auth event handling
@@ -77,12 +77,12 @@ export const shouldIgnoreAuthEvent = (event: string): boolean => {
   if (event === 'USER_UPDATED' && isUpdatingUserInOTPFlow) {
     return true;
   }
-  
+
   // Ignore visibility-triggered events
   if (isVisibilityTriggeredAuthEvent(event)) {
     return true;
   }
-  
+
   return false;
 };
 
@@ -104,11 +104,11 @@ export class AuthService {
           TIMEOUT_CONFIG.DATA_QUERIES,
           'GetSession'
         );
-        
+
         if (error) throw error;
         return session;
       }, true);
-      
+
       if (!session?.user) return null;
 
       // Map session.user to AuthUser (unified for all auth methods)
@@ -116,11 +116,11 @@ export class AuthService {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown getCurrentUser error';
-      
+
       if (isAuthError(error)) {
         return null;
       }
-      
+
       return null;
     }
   }
@@ -130,11 +130,11 @@ export class AuthService {
     return {
       id: sessionUser.id,
       email: sessionUser.email || '',
-      username: sessionUser.user_metadata?.username || 
-               sessionUser.user_metadata?.full_name || 
-               sessionUser.user_metadata?.name || 
-               sessionUser.email?.split('@')[0] || 
-               `user_${sessionUser.id.slice(0, 8)}`,
+      username: sessionUser.user_metadata?.username ||
+        sessionUser.user_metadata?.full_name ||
+        sessionUser.user_metadata?.name ||
+        sessionUser.email?.split('@')[0] ||
+        `user_${sessionUser.id.slice(0, 8)}`,
       created_at: sessionUser.created_at,
       updated_at: sessionUser.updated_at || sessionUser.created_at,
     };
@@ -143,7 +143,7 @@ export class AuthService {
   async sendOTP(email: string, options: SendOTPOptions = {}) {
     try {
       const { shouldCreateUser = true, emailRedirectTo } = options;
-      
+
       return await safeSupabaseOperation(async (client) => {
         const { error } = await withTimeout(
           client.auth.signInWithOtp({
@@ -156,24 +156,24 @@ export class AuthService {
           TIMEOUT_CONFIG.AUTH_OPERATIONS,
           'SendOTP'
         );
-        
+
         if (error) {
           if (error.message.includes('timeout')) {
             return { error: 'Network is slow, please retry', errorType: 'timeout' };
           }
           return { error: error.message, errorType: 'business' };
         }
-        
+
         return {};
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown sendOTP error';
       console.warn('[Template:AuthService] SendOTP system exception:', errorMessage);
-      
+
       if (errorMessage.includes('timeout')) {
         return { error: 'Network connection timeout, please check network and retry', errorType: 'timeout' };
       }
-      
+
       return { error: 'Failed to send verification code', errorType: 'network' };
     }
   }
@@ -197,41 +197,41 @@ export class AuthService {
             console.warn('[Template:AuthService] Database trigger missing, auth function available but user profile creation failed');
             console.warn('[Template:AuthService] Please refer to SDK documentation to set up user_profiles table and triggers');
           }
-          
+
           if (error.message.includes('timeout')) {
             return { error: 'Verification timeout, please retry', user: null, errorType: 'timeout' };
           }
-          
+
           return { error: error.message, user: null, errorType: 'business' };
         }
 
         if (data.user) {
-  
+
           // Step 2: Update user with password if provided (with deadlock prevention)
           if (options?.password) {
-            
+
             try {
               // Set flag to prevent deadlock
               isUpdatingUserInOTPFlow = true;
-              
+
               const { data: updateData, error: updateError } = await withTimeout(
                 client.auth.updateUser({ password: options.password }),
                 TIMEOUT_CONFIG.USER_UPDATE,
                 'UpdateUser'
               );
-              
-              
+
+
               if (updateError) {
                 console.warn('[Template:AuthService] User update failed after OTP verification:', updateError.message);
                 // Note: We don't fail the entire operation if user update fails
                 // The user is still successfully authenticated via OTP
               }
-              
+
               // Clear flag after a delay to ensure all events are processed
               setTimeout(() => {
                 isUpdatingUserInOTPFlow = false;
               }, 2000);
-              
+
             } catch (updateError) {
               // Clear flag on error
               isUpdatingUserInOTPFlow = false;
@@ -244,10 +244,10 @@ export class AuthService {
             // Wait a moment for the update to settle
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
-          
+
           try {
             const authUser = await this.getCurrentUser();
-            
+
             if (authUser) {
               return { user: authUser };
             } else {
@@ -263,7 +263,7 @@ export class AuthService {
             }
           } catch (userError) {
             const errorMessage = userError instanceof Error ? userError.message : 'Unknown error';
-            
+
             // Use fallback data
             const fallbackUser: AuthUser = {
               id: data.user.id,
@@ -275,20 +275,20 @@ export class AuthService {
             return { user: fallbackUser };
           }
         }
-        
+
         return { user: null };
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown verifyOTP error';
       console.warn('[Template:AuthService] VerifyOTPAndLogin system exception:', errorMessage);
-      
+
       // Clear flag on any error
       isUpdatingUserInOTPFlow = false;
-      
+
       if (errorMessage.includes('timeout')) {
         return { error: 'Login timeout, please retry', user: null, errorType: 'timeout' };
       }
-      
+
       return { error: 'Login failed', user: null, errorType: 'network' };
     }
   }
@@ -316,9 +316,9 @@ export class AuthService {
         }
 
         if (data.user && !data.session) {
-          return { 
-            user: null, 
-            needsEmailConfirmation: true 
+          return {
+            user: null,
+            needsEmailConfirmation: true
           };
         }
 
@@ -331,17 +331,17 @@ export class AuthService {
             return { error: 'Sign up succeeded but failed to load profile', user: null, errorType: 'network' };
           }
         }
-        
+
         return { user: null };
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown signUp error';
       console.warn('[Template:AuthService] SignUpWithPassword system exception:', errorMessage);
-      
+
       if (errorMessage.includes('timeout')) {
         return { error: 'Sign up timeout, please retry', errorType: 'timeout' };
       }
-      
+
       return { error: 'Sign up failed', errorType: 'network' };
     }
   }
@@ -368,7 +368,7 @@ export class AuthService {
         if (data.user) {
           try {
             const authUser = await this.getCurrentUser();
-            
+
             if (authUser) {
               return { user: authUser };
             } else {
@@ -379,17 +379,17 @@ export class AuthService {
             return { error: 'Sign in succeeded but failed to load profile', user: null, errorType: 'network' };
           }
         }
-        
+
         return { user: null };
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown signIn error';
       console.warn('[Template:AuthService] SignInWithPassword system exception:', errorMessage);
-      
+
       if (errorMessage.includes('timeout')) {
         return { error: 'Sign in timeout, please retry', user: null, errorType: 'timeout' };
       }
-      
+
       return { error: 'Sign in failed', user: null, errorType: 'network' };
     }
   }
@@ -402,24 +402,24 @@ export class AuthService {
           TIMEOUT_CONFIG.AUTH_OPERATIONS,
           'Logout'
         );
-        
+
         if (error) {
           if (error.message.includes('timeout')) {
             return { error: 'Logout timeout, please retry', errorType: 'timeout' };
           }
           return { error: error.message, errorType: 'business' };
         }
-        
+
         return {};
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown logout error';
       console.warn('[Template:AuthService] Logout system exception:', errorMessage);
-      
+
       if (errorMessage.includes('timeout')) {
         return { error: 'Logout timeout, please check network and retry', errorType: 'timeout' };
       }
-      
+
       return { error: errorMessage, errorType: 'network' };
     }
   }
@@ -432,7 +432,7 @@ export class AuthService {
           TIMEOUT_CONFIG.SESSION_REFRESH,
           'RefreshSession'
         );
-        
+
         if (error) {
           if (error.message.includes('timeout')) {
             console.warn('[Template:AuthService] Session refresh timeout');
@@ -451,7 +451,7 @@ export class AuthService {
     try {
       // Generate cross-platform redirect URL
       const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: 'onspaceapp',
+        scheme: 'tigoai',
         path: 'auth'
       });
 
@@ -461,9 +461,9 @@ export class AuthService {
           provider: 'google',
           options: {
             redirectTo: redirectUrl,
-            queryParams: { 
-              access_type: 'offline', 
-              prompt: 'consent' 
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent'
             },
             skipBrowserRedirect: Platform.OS !== 'web'
           }
@@ -495,15 +495,15 @@ export class AuthService {
       // Step 3: Handle callback
       if (result.type === 'success') {
         const url = result.url;
-        
+
         try {
           const params = new URL(url).searchParams;
           const code = params.get('code');
-          
+
           if (!code) {
             const error = params.get('error');
             const errorDescription = params.get('error_description');
-            return { 
+            return {
               error: errorDescription || error || 'No authorization code received'
             };
           }
@@ -516,7 +516,7 @@ export class AuthService {
           );
 
           if (exchangeError) {
-            return { 
+            return {
               error: `Session exchange failed: ${exchangeError.message}`
             };
           }
@@ -542,7 +542,7 @@ export class AuthService {
           return { error: null };
         } catch (urlError) {
           const errorMsg = urlError instanceof Error ? urlError.message : 'Unknown error';
-          return { 
+          return {
             error: `Failed to parse callback: ${errorMsg}`
           };
         }
@@ -554,18 +554,18 @@ export class AuthService {
         return { error: 'Browser is locked' };
       }
 
-      return { 
+      return {
         error: `Unknown result: ${result.type}`
       };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown Google login error';
-      
+
       if (errorMessage.includes('timeout')) {
         return { error: 'Google login timeout, please retry' };
       }
-      
-      return { 
+
+      return {
         error: `Google login failed: ${errorMessage}`
       };
     }
@@ -579,7 +579,7 @@ export class AuthService {
           if (shouldIgnoreAuthEvent(event)) {
             return;
           }
-          
+
           if (session?.user) {
             try {
               const authUser = this.mapSessionToAuthUser(session.user);

@@ -12,7 +12,7 @@ export default function DeviceScreen() {
   const { showAlert } = useAlert();
   const { deviceStatus, settings, syncing, updateSettings, syncMedia, refreshStatus } = useGlasses();
 
-  const handleToggle = async (key: keyof typeof settings, value: boolean) => {
+  const handleToggle = async (key: 'autoSync' | 'voiceActivation', value: boolean) => {
     if (!settings) return;
     await updateSettings({ ...settings, [key]: value });
   };
@@ -68,7 +68,7 @@ export default function DeviceScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Capture Settings</Text>
-          
+
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>Auto Sync</Text>
@@ -87,7 +87,7 @@ export default function DeviceScreen() {
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>Voice Activation</Text>
               <Text style={styles.settingDescription}>
-                Enable "Hey Meta" voice commands
+                Enable "Hey Tigo" voice commands
               </Text>
             </View>
             <Switch
@@ -100,7 +100,7 @@ export default function DeviceScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quality Settings</Text>
-          
+
           <View style={styles.qualityRow}>
             <Text style={styles.settingLabel}>Photo Resolution</Text>
             <View style={styles.qualityButtons}>
@@ -178,13 +178,7 @@ export default function DeviceScreen() {
           </View>
         </View>
 
-        <View style={styles.infoBox}>
-          <MaterialIcons name="info-outline" size={20} color={theme.colors.textSecondary} />
-          <Text style={styles.infoText}>
-            This is a demo app with simulated smart glasses connection. 
-            All device interactions and media are mocked for demonstration purposes.
-          </Text>
-        </View>
+
       </ScrollView>
     </View>
   );

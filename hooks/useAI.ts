@@ -12,39 +12,20 @@ export function useAI() {
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
 
-  // Load messages on mount
-  useEffect(() => {
-    loadMessages();
-    
-    // Subscribe to network changes
-    const unsubscribe = offlineService.onNetworkChange(async (connected) => {
-      setIsOnline(connected);
-      if (connected && user) {
-        // Sync queued messages when back online
-        await syncQueuedMessages();
-      }
-    });
-
-    return unsubscribe;
-  }, [user]);
-
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async (showLoading = true) => {
     try {
+      if (showLoading) setLoading(true);
+      const userId = user?.id || 'guest_user';
+      console.log(`[useAI] Fetching fresh messages for: ${userId}...`);
       // Try to load from backend first if online
-      if (user) {
-        const online = await offlineService.isOnline();
-        if (online) {
-          const backendMessages = await backendService.fetchChatHistory(user.id);
-          setMessages(backendMessages);
-          // Save to offline storage
-          await offlineService.saveMessages(backendMessages);
-        } else {
-          // Load from offline storage
-          const offlineMessages = await offlineService.getMessages();
-          setMessages(offlineMessages);
-        }
+      const online = await offlineService.isOnline();
+      if (online) {
+        const backendMessages = await backendService.fetchChatHistory(userId);
+        setMessages(backendMessages);
+        // Save to offline storage
+        await offlineService.saveMessages(backendMessages);
       } else {
-        // Not logged in, load from offline storage
+        // Load from offline storage
         const offlineMessages = await offlineService.getMessages();
         setMessages(offlineMessages);
       }
@@ -56,7 +37,72 @@ export function useAI() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  // Load messages on mount and subscribe to realtime updates
+  useEffect(() => {
+    const userId = user?.id || 'guest_user';
+    console.log(`[useAI] Monitoring chat for user: ${userId}`);
+    loadMessages(true);
+
+    const { supabase } = backendService;
+    const channel = supabase
+      .channel(`chat_changes_${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for all events (Insert/Update)
+          schema: 'public',
+          table: 'chat_messages',
+        },
+        (payload: any) => {
+          // Filter in JS for maximum reliability
+          if (payload.new && payload.new.user_id === userId) {
+            console.log(`[useAI] 💬 PROACTIVE UPDATE: ${payload.eventType}`);
+
+            const msgRow = payload.new;
+            const newMessage: AIMessage = {
+              id: msgRow.id,
+              role: msgRow.role as 'user' | 'assistant',
+              content: msgRow.content,
+              timestamp: new Date(msgRow.timestamp || msgRow.created_at).getTime(),
+              synced: true,
+              audioUrl: msgRow.audio_url || undefined,
+            };
+
+            setMessages(prev => {
+              // If it's an update, replace the existing message
+              if (payload.eventType === 'UPDATE') {
+                return prev.map(m => m.id === msgRow.id ? newMessage : m);
+              }
+              // If it's an insert, add if not exists
+              if (prev.some(m => m.id === newMessage.id)) return prev;
+              return [...prev, newMessage];
+            });
+
+            // Silent background sync for safety
+            loadMessages(false);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log(`[useAI] 🌐 Realtime Status: ${status} (UserID: ${userId})`);
+      });
+
+    // Subscribe to network changes
+    const unsubscribeNetwork = offlineService.onNetworkChange(async (connected) => {
+      setIsOnline(connected);
+      if (connected && user) {
+        await syncQueuedMessages();
+      }
+    });
+
+    return () => {
+      console.log(`[useAI] Cleaning up Monitoring for: ${userId}`);
+      if (channel) supabase.removeChannel(channel);
+      unsubscribeNetwork();
+    };
+  }, [user, loadMessages]);
 
   const syncQueuedMessages = async () => {
     if (!user) return;
@@ -96,19 +142,22 @@ export function useAI() {
     setMessages(prev => [...prev, userMessage]);
     setProcessing(true);
 
+    const userId = user?.id || 'guest_user';
+    console.log(`[useAI] Attempting to send message for user: ${userId}`);
+
     try {
-      const online = await offlineService.isOnline();
-      
-      if (online && user) {
-        // Send to backend
-        const response = await backendService.sendChatMessage(content, user.id);
-        
+      // Always attempt to send to backend first
+      try {
+        const result = await backendService.chatWithTigo(content, userId, 'app_instance');
+        console.log('[useAI] Backend responded successfully');
+
         const assistantMessage: AIMessage = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
-          content: response,
+          content: result.text,
           timestamp: Date.now(),
           synced: true,
+          audioUrl: result.audio_url,
         };
 
         const updatedMessages = [
@@ -118,51 +167,33 @@ export function useAI() {
         ];
         setMessages(updatedMessages);
         await offlineService.saveMessages(updatedMessages);
-        
+
         return assistantMessage;
-      } else {
-        // Offline mode - queue for later and provide local response
+      } catch (fetchError) {
+        console.warn('[useAI] Online fetch failed, queuing for later:', fetchError);
+        // Fall through to offline handling
         await offlineService.addToQueue({
           type: 'send_message',
           data: { message: content },
         });
 
-        const offlineResponse: AIMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: 'Message saved. It will be sent when you are back online.',
-          timestamp: Date.now(),
-          synced: false,
-        };
-
-        const updatedMessages = [...messages, userMessage, offlineResponse];
+        // Still show the message in the list
+        const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
         await offlineService.saveMessages(updatedMessages);
-        
-        return offlineResponse;
       }
     } catch (error) {
       console.error('AI request failed:', error);
-      
-      // Save to queue on error
+
+      // Save to queue on error if not already caught
       await offlineService.addToQueue({
         type: 'send_message',
         data: { message: content },
       });
 
-      const errorMessage: AIMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: 'Could not send message. It has been saved and will be sent when connection is restored.',
-        timestamp: Date.now(),
-        synced: false,
-      };
-
-      const updatedMessages = [...messages, userMessage, errorMessage];
+      const updatedMessages = [...messages, userMessage];
       setMessages(updatedMessages);
       await offlineService.saveMessages(updatedMessages);
-
-      throw error;
     } finally {
       setProcessing(false);
     }
@@ -174,7 +205,7 @@ export function useAI() {
 
   const stopListening = useCallback(async (transcription?: string) => {
     setListening(false);
-    
+
     if (transcription) {
       await sendMessage(transcription);
     }

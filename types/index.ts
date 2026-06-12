@@ -41,6 +41,7 @@ export interface AIMessage {
   timestamp: number;
   waveform?: number[];
   synced?: boolean;
+  audioUrl?: string;
 }
 
 export interface CaptureSettings {

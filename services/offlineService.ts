@@ -93,17 +93,35 @@ export const offlineService = {
   async isOnline(): Promise<boolean> {
     try {
       const state = await NetInfo.fetch();
-      return state.isConnected ?? false;
+      if (state.isConnected === false) return false;
+
+      // Heartbeat check to the backend
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+      if (backendUrl) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          await fetch(backendUrl.replace('/api', '') + '/get_commands/ping', {
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          return true;
+        } catch {
+          // If we can't hit the backend, we are "offline" for our purposes
+          return false;
+        }
+      }
+      return state.isConnected ?? true;
     } catch (error) {
       console.error('Error checking network status:', error);
-      return false;
+      return true;
     }
   },
 
   // Subscribe to network changes
   onNetworkChange(callback: (isConnected: boolean) => void): () => void {
     const unsubscribe = NetInfo.addEventListener(state => {
-      callback(state.isConnected ?? false);
+      callback(state.isConnected !== false); // Default to true unless explicitly false
     });
     return unsubscribe;
   },

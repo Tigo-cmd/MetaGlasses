@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -13,9 +13,10 @@ export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { showAlert } = useAlert();
-  const { media, isOnline, analyzeMedia } = useGlasses();
+  const { media, isOnline, analyzeMedia, deleteMedia } = useGlasses();
   const [item, setItem] = useState<MediaItem | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const foundItem = media.find(m => m.id === id);
@@ -31,14 +32,14 @@ export default function MediaDetailScreen() {
       showAlert('Offline', 'AI analysis requires internet connection');
       return;
     }
-    
+
     setAnalyzing(true);
     try {
       const result = await analyzeMedia(item);
-      setItem(prev => prev ? { 
-        ...prev, 
-        aiCaption: result.caption, 
-        aiTags: result.tags 
+      setItem(prev => prev ? {
+        ...prev,
+        aiCaption: result.caption,
+        aiTags: result.tags
       } : null);
       showAlert('Analysis Complete', 'AI caption and tags generated successfully');
     } catch (error) {
@@ -46,6 +47,43 @@ export default function MediaDetailScreen() {
       showAlert('Analysis Failed', 'Could not analyze media. Please try again.');
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!item) return;
+
+    Alert.alert(
+      'Delete Media',
+      'Are you sure you want to permanently delete this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteMedia(item);
+              router.back();
+              showAlert('Deleted', 'Media removed successfully');
+            } catch (error) {
+              showAlert('Error', 'Failed to delete media');
+            } finally {
+              setDeleting(false);
+            }
+          }
+        },
+      ]
+    );
+  };
+
+  const handleDownload = async () => {
+    if (!item) return;
+    try {
+      await Linking.openURL(item.uri);
+    } catch (error) {
+      showAlert('Error', 'Could not open download link');
     }
   };
 
@@ -116,7 +154,7 @@ export default function MediaDetailScreen() {
                 <Text style={styles.captionLabel}>AI Description</Text>
               </View>
               <Text style={styles.captionText}>{item.aiCaption}</Text>
-              
+
               {item.aiTags && item.aiTags.length > 0 && (
                 <View style={styles.tagsContainer}>
                   {item.aiTags.map((tag, index) => (
@@ -138,14 +176,27 @@ export default function MediaDetailScreen() {
           )}
 
           <View style={styles.actions}>
-            <Pressable style={styles.actionButton}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={handleDownload}
+            >
               <MaterialIcons name="download" size={24} color={theme.colors.text} />
               <Text style={styles.actionText}>Download</Text>
             </Pressable>
-            
-            <Pressable style={styles.actionButton}>
-              <MaterialIcons name="delete" size={24} color={theme.colors.error} />
-              <Text style={[styles.actionText, { color: theme.colors.error }]}>Delete</Text>
+
+            <Pressable
+              style={styles.actionButton}
+              onPress={handleDelete}
+              disabled={deleting}
+            >
+              <MaterialIcons
+                name="delete"
+                size={24}
+                color={deleting ? theme.colors.textSecondary : theme.colors.error}
+              />
+              <Text style={[styles.actionText, { color: deleting ? theme.colors.textSecondary : theme.colors.error }]}>
+                {deleting ? 'Deleting...' : 'Delete'}
+              </Text>
             </Pressable>
           </View>
         </View>

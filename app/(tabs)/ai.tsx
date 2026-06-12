@@ -4,12 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAI } from '@/hooks/useAI';
 import { ChatBubble, VoiceButton, OfflineIndicator } from '@/components';
+import { CommandHistoryPanel } from '@/components/CommandHistoryPanel';
 import { theme } from '@/constants/theme';
 
 export default function AIScreen() {
   const insets = useSafeAreaInsets();
   const { messages, processing, listening, loading, isOnline, sendMessage, startListening, stopListening, clearHistory } = useAI();
   const [inputText, setInputText] = useState('');
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -20,7 +22,7 @@ export default function AIScreen() {
 
   const handleSend = async () => {
     if (!inputText.trim() || processing) return;
-    
+
     const text = inputText.trim();
     setInputText('');
     try {
@@ -66,11 +68,14 @@ export default function AIScreen() {
             </View>
             <View>
               <Text style={styles.title}>AI Assistant</Text>
-              <Text style={styles.subtitle}>Powered by OnSpace AI</Text>
+              <Text style={styles.subtitle}>Powered by TigoAI</Text>
             </View>
           </View>
           <View style={styles.headerRight}>
             <OfflineIndicator isOnline={isOnline} />
+            <Pressable onPress={() => setIsHistoryVisible(true)} style={styles.headerButton}>
+              <MaterialIcons name="history" size={24} color={theme.colors.textSecondary} />
+            </Pressable>
             {messages.length > 0 && (
               <Pressable onPress={handleClearHistory} style={styles.clearButton}>
                 <MaterialIcons name="delete-outline" size={20} color={theme.colors.textSecondary} />
@@ -79,6 +84,12 @@ export default function AIScreen() {
           </View>
         </View>
 
+        <CommandHistoryPanel
+          isVisible={isHistoryVisible}
+          onClose={() => setIsHistoryVisible(false)}
+          messages={messages}
+        />
+
         {messages.length === 0 ? (
           <View style={styles.emptyContainer}>
             <MaterialIcons name="psychology" size={80} color={theme.colors.surfaceLight} />
@@ -86,7 +97,7 @@ export default function AIScreen() {
             <Text style={styles.emptyText}>
               Ask me anything about your glasses, capture moments, or describe what you see
             </Text>
-            
+
             <View style={styles.suggestions}>
               <Pressable style={styles.suggestion} onPress={() => sendMessage('Take a photo')}>
                 <Text style={styles.suggestionText}>📸 Take a photo</Text>
@@ -124,14 +135,7 @@ export default function AIScreen() {
         )}
 
         <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
-          {!isOnline && (
-            <View style={styles.offlineNotice}>
-              <MaterialIcons name="info-outline" size={16} color={theme.colors.textSecondary} />
-              <Text style={styles.offlineNoticeText}>
-                Messages will be sent when you are back online
-              </Text>
-            </View>
-          )}
+
           <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
@@ -144,7 +148,7 @@ export default function AIScreen() {
               multiline
               maxLength={500}
             />
-            
+
             {inputText.trim() ? (
               <Pressable
                 onPress={handleSend}
@@ -185,6 +189,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  headerButton: {
+    padding: 8,
   },
   headerIcon: {
     width: 48,

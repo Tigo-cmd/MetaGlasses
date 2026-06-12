@@ -34,8 +34,8 @@ export const backendService = {
     return (data || []).map(item => ({
       id: item.id,
       type: item.type,
-      uri: item.uri,
-      thumbnail: item.thumbnail || item.uri,
+      uri: item.uri || item.url, // Handle both 'uri' and 'url' column names
+      thumbnail: item.thumbnail || item.uri || item.url,
       timestamp: new Date(item.created_at).getTime(),
       duration: item.duration,
       location: item.location,
@@ -49,6 +49,24 @@ export const backendService = {
     const { error } = await supabase
       .from('media_items')
       .update({ ai_caption: caption, ai_tags: tags })
+      .eq('id', mediaId);
+
+    if (error) throw error;
+  },
+
+  async deleteMedia(mediaId: string, storagePath?: string): Promise<void> {
+    // 1. Delete from storage if path provided
+    if (storagePath) {
+      const { error: storageError } = await supabase.storage
+        .from('media')
+        .remove([storagePath]);
+      if (storageError) console.warn('Storage delete error:', storageError);
+    }
+
+    // 2. Delete from database
+    const { error } = await supabase
+      .from('media_items')
+      .delete()
       .eq('id', mediaId);
 
     if (error) throw error;
@@ -136,27 +154,70 @@ export const backendService = {
 
   // Media analysis
   async analyzeMedia(imageUri: string): Promise<{ caption: string; tags: string[] }> {
-    const { data, error } = await supabase.functions.invoke('analyze-media', {
-      body: { imageUri },
-    });
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    try {
+      const response = await fetch(`${backendUrl}/analyze_media`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageUri }),
+      });
 
-    if (error) {
-      let errorMessage = error.message;
-      if (error instanceof FunctionsHttpError) {
-        try {
-          const statusCode = error.context?.status ?? 500;
-          const textContent = await error.context?.text();
-          errorMessage = `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`;
-        } catch {
-          errorMessage = `${error.message || 'Failed to analyze media'}`;
-        }
+      if (!response.ok) {
+        throw new Error('Failed to analyze media via backend');
       }
-      throw new Error(errorMessage);
-    }
 
-    return {
-      caption: data.caption || '',
-      tags: data.tags || [],
-    };
+      const data = await response.json();
+      return {
+        caption: data.caption || '',
+        tags: data.tags || [],
+      };
+    } catch (error) {
+      console.error('analyzeMedia error:', error);
+      throw error;
+    }
   },
+
+  // Direct Tigo backend Chat
+  async chatWithTigo(message: string, userId: string, deviceId: string): Promise<{ text: string; audio_url: string }> {
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    console.log(`[backendService] Chatting with Tigo at: ${backendUrl}/transcribe_text`);
+    try {
+      const response = await fetch(`${backendUrl}/transcribe_text`, { // I'll add this endpoint to app.py
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message, user_id: userId, device_id: deviceId }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to talk to Tigo backend');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('chatWithTigo error:', error);
+      throw error;
+    }
+  },
+  // Device Commands
+  async sendDeviceCommand(deviceId: string, command: string): Promise<void> {
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    try {
+      const response = await fetch(`${backendUrl}/send_command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ device_id: deviceId, command }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send command to device');
+      }
+    } catch (error) {
+      console.error('sendDeviceCommand error:', error);
+      throw error;
+    }
+  },
+  supabase,
 };

@@ -17,10 +17,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const aiApiKey = Deno.env.get('ONSPACE_AI_API_KEY')!;
-    const aiBaseUrl = Deno.env.get('ONSPACE_AI_BASE_URL')!;
+    const aiApiKey = Deno.env.get('TIGOAI_AI_API_KEY')!;
+    const aiBaseUrl = Deno.env.get('TIGOAI_AI_BASE_URL')!;
 
-    // Call OnSpace AI for image analysis
+    // Call TigoAI for image analysis
     const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
     const aiData = await aiResponse.json();
     const content = aiData.choices[0]?.message?.content || '{}';
-    
+
     // Try to parse JSON response
     let result;
     try {

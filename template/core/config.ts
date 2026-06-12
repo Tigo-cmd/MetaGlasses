@@ -1,11 +1,11 @@
 // @ts-nocheck
-import { OnSpaceConfig } from './types';
+import { TigoAIConfig } from './types';
 
 class ConfigManager {
   private static instance: ConfigManager;
-  private config: OnSpaceConfig | null = null;
+  private config: TigoAIConfig | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): ConfigManager {
     if (!ConfigManager.instance) {
@@ -14,22 +14,22 @@ class ConfigManager {
     return ConfigManager.instance;
   }
 
-  public initialize(config: OnSpaceConfig) {
+  public initialize(config: TigoAIConfig) {
     if (this.config) {
       console.warn('[Template:Config] Configuration already set, updating...');
     }
-    
+
     this.config = { ...config };
   }
 
-  public getConfig(): OnSpaceConfig {
+  public getConfig(): TigoAIConfig {
     if (!this.config) {
       this.config = this.createDefaultConfig();
     }
     return { ...this.config };
   }
 
-  private createDefaultConfig(): OnSpaceConfig {
+  private createDefaultConfig(): TigoAIConfig {
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -37,7 +37,7 @@ class ConfigManager {
     let supabaseConfig;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-          console.warn('[Template:Config] Supabase environment variables missing, automatically disabling auth module');
+      console.warn('[Template:Config] Supabase environment variables missing, automatically disabling auth module');
       authConfig = false;
     } else {
       authConfig = {
@@ -72,7 +72,7 @@ class ConfigManager {
     return this.getConfig().supabase;
   }
 
-  public updateConfig(updates: Partial<OnSpaceConfig>) {
+  public updateConfig(updates: Partial<TigoAIConfig>) {
     const config = this.getConfig();
     this.config = { ...config, ...updates };
   }
@@ -91,7 +91,7 @@ interface CreateConfigOptions {
   };
 }
 
-export const createConfig = (options: CreateConfigOptions = {}): OnSpaceConfig => {
+export const createConfig = (options: CreateConfigOptions = {}): TigoAIConfig => {
   let authConfig;
   if (options.auth === false) {
     authConfig = false;
