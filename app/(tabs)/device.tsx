@@ -56,6 +56,13 @@ export default function DeviceScreen() {
       >
         <DeviceCard status={deviceStatus} />
 
+        {deviceStatus.systemError ? (
+          <View style={styles.errorBox}>
+            <MaterialIcons name="warning" size={24} color={theme.colors.error} />
+            <Text style={styles.errorText}>{deviceStatus.systemError}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <Button
@@ -288,5 +295,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     lineHeight: 20,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3b1c1c',
+    borderColor: theme.colors.error,
+    borderWidth: 1,
+    padding: 16,
+    borderRadius: theme.borderRadius.lg,
+    gap: 12,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#ffcdd2',
+    lineHeight: 20,
+    fontWeight: '500',
   },
 });

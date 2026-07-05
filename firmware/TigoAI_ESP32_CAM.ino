@@ -123,12 +123,12 @@ void setupCamera() {
   config.pixel_format = PIXFORMAT_JPEG;
 
   if (psramFound()) {
-    config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 12;
+    config.frame_size = FRAMESIZE_VGA;   // 640x480 for clearer vision analysis
+    config.jpeg_quality = 8;             // Lower number = higher quality (range 0-63)
     config.fb_count = 2;
   } else {
-    config.frame_size = FRAMESIZE_QQVGA;
-    config.jpeg_quality = 15;
+    config.frame_size = FRAMESIZE_QVGA;
+    config.jpeg_quality = 12;
     config.fb_count = 1;
   }
 
@@ -143,8 +143,26 @@ void setupCamera() {
 
   Serial.println("Camera init OK");
 
+  // Tune the sensor for better image quality
   sensor_t* s = esp_camera_sensor_get();
-  s->set_framesize(s, FRAMESIZE_QVGA);
+  s->set_framesize(s, FRAMESIZE_VGA);    // 640x480
+  s->set_quality(s, 8);                  // JPEG compression quality
+  s->set_brightness(s, 1);               // Slightly brighter
+  s->set_saturation(s, 1);               // Slightly more vivid colours
+  s->set_sharpness(s, 1);                // Sharpen edges
+  s->set_whitebal(s, 1);                 // Enable auto white balance
+  s->set_awb_gain(s, 1);                 // Enable AWB gain
+  s->set_exposure_ctrl(s, 1);            // Enable auto exposure
+  s->set_aec2(s, 1);                     // Enable AEC DSP
+  s->set_gain_ctrl(s, 1);                // Enable auto gain
+
+  // Discard initial frames so auto-exposure stabilises
+  for (int i = 0; i < 4; i++) {
+    camera_fb_t* fb = esp_camera_fb_get();
+    if (fb) esp_camera_fb_return(fb);
+    delay(100);
+  }
+  Serial.println("Camera sensor stabilised.");
 }
 
 // ===================== COMMAND POLLING =====================
@@ -190,6 +208,14 @@ void pollBackendCommand() {
 void captureTwoSnapshots(String sessionId) {
   Serial.print("Capturing 2 snapshots for session: ");
   Serial.println(sessionId);
+
+  // Discard 3 warm-up frames so auto-exposure/white-balance settle
+  for (int w = 0; w < 3; w++) {
+    camera_fb_t* warmup = esp_camera_fb_get();
+    if (warmup) esp_camera_fb_return(warmup);
+    delay(80);
+  }
+  Serial.println("Warm-up frames discarded, capturing now...");
 
   for (int frameId = 0; frameId < 2; frameId++) {
     camera_fb_t* fb = esp_camera_fb_get();

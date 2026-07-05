@@ -2,27 +2,93 @@ import { getSupabaseClient } from '@/template';
 import { MediaItem, AIMessage, Album, DeviceStatus } from '@/types';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 
-const supabase = getSupabaseClient();
+const supabase = new Proxy({} as any, {
+  get(target, prop, receiver) {
+    return Reflect.get(getSupabaseClient(), prop, receiver);
+  }
+});
+const getBackendUrl = () => process.env.EXPO_PUBLIC_BACKEND_URL || 'http://192.168.1.154:5000';
 
 export const backendService = {
   // Media operations
   async uploadMedia(item: MediaItem, userId: string): Promise<void> {
-    const { error } = await supabase.from('media_items').insert({
-      user_id: userId,
-      type: item.type,
-      uri: item.uri,
-      thumbnail: item.thumbnail,
-      duration: item.duration,
-      location: item.location,
-      ai_caption: item.aiCaption,
-      ai_tags: item.aiTags || [],
-      synced: true,
-    });
+    try {
+      const backendUrl = getBackendUrl();
+      const formData = new FormData();
+      formData.append('user_id', userId);
+      formData.append('device_id', 'esp32_01');
+      
+      if (item.uri) {
+        const filename = item.uri.split('/').pop() || 'upload.jpg';
+        const type = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
+        formData.append('file', {
+          uri: item.uri,
+          name: filename,
+          type: type,
+        } as any);
+      }
 
-    if (error) throw error;
+      const response = await fetch(`${backendUrl}/upload_media`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Upload failed: ${errText}`);
+      }
+    } catch (error) {
+      console.error('Local uploadMedia failed, trying Supabase fallback...', error);
+      // Fallback to Supabase if local upload fails
+      const { error: supabaseError } = await supabase.from('media_items').insert({
+        user_id: userId,
+        type: item.type,
+        uri: item.uri,
+        thumbnail: item.thumbnail,
+        duration: item.duration,
+        location: item.location,
+        ai_caption: item.aiCaption,
+        ai_tags: item.aiTags || [],
+        synced: true,
+      });
+      if (supabaseError) throw supabaseError;
+    }
   },
 
   async fetchMedia(userId: string): Promise<MediaItem[]> {
+    try {
+      const backendUrl = getBackendUrl();
+      const response = await fetch(`${backendUrl}/api/media?user_id=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        return (data || []).map((item: any) => {
+          let uri = item.uri || item.url;
+          if (uri && (uri.includes('localhost') || uri.includes('127.0.0.1'))) {
+            const host = backendUrl.replace('http://', '').replace('https://', '');
+            uri = uri.replace('localhost:5000', host).replace('127.0.0.1:5000', host);
+          }
+          return {
+            id: item.id,
+            type: item.type,
+            uri: uri,
+            thumbnail: uri,
+            timestamp: new Date(item.created_at).getTime(),
+            duration: item.duration,
+            location: item.location,
+            aiCaption: item.ai_caption,
+            aiTags: item.ai_tags || [],
+            synced: true,
+          };
+        });
+      }
+    } catch (error) {
+      console.warn('Local fetchMedia failed, falling back to Supabase...', error);
+    }
+
+    // Supabase fallback
     const { data, error } = await supabase
       .from('media_items')
       .select('*')
@@ -34,7 +100,7 @@ export const backendService = {
     return (data || []).map(item => ({
       id: item.id,
       type: item.type,
-      uri: item.uri || item.url, // Handle both 'uri' and 'url' column names
+      uri: item.uri || item.url,
       thumbnail: item.thumbnail || item.uri || item.url,
       timestamp: new Date(item.created_at).getTime(),
       duration: item.duration,
@@ -154,7 +220,7 @@ export const backendService = {
 
   // Media analysis
   async analyzeMedia(imageUri: string): Promise<{ caption: string; tags: string[] }> {
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
     try {
       const response = await fetch(`${backendUrl}/analyze_media`, {
         method: 'POST',
@@ -181,7 +247,7 @@ export const backendService = {
 
   // Direct Tigo backend Chat
   async chatWithTigo(message: string, userId: string, deviceId: string): Promise<{ text: string; audio_url: string }> {
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
     console.log(`[backendService] Chatting with Tigo at: ${backendUrl}/transcribe_text`);
     try {
       const response = await fetch(`${backendUrl}/transcribe_text`, { // I'll add this endpoint to app.py
@@ -202,7 +268,7 @@ export const backendService = {
   },
   // Device Commands
   async sendDeviceCommand(deviceId: string, command: string): Promise<void> {
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
     try {
       const response = await fetch(`${backendUrl}/send_command`, {
         method: 'POST',
@@ -219,12 +285,19 @@ export const backendService = {
       throw error;
     }
   },
-  async getDeviceStatus(deviceId: string = 'esp32_01'): Promise<DeviceStatus> {
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+  async getDeviceStatus(deviceId: string = 'esp32_01', userId: string = 'guest_user'): Promise<DeviceStatus> {
+    const backendUrl = getBackendUrl();
     try {
-      const response = await fetch(`${backendUrl}/device_status/${deviceId}`);
+      const response = await fetch(`${backendUrl}/device_status/${deviceId}?user_id=${userId}`);
       if (response.ok) {
-        return await response.json();
+        const data = await response.json();
+        return {
+          connected: data.connected,
+          battery: data.battery,
+          storage: data.storage,
+          model: data.model,
+          systemError: data.system_error,
+        };
       }
     } catch (error) {
       console.warn('Error fetching device status:', error);

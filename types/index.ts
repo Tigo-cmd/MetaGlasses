@@ -32,6 +32,7 @@ export interface DeviceStatus {
   };
   model: string;
   lastSync?: number;
+  systemError?: string;
 }
 
 export interface AIMessage {
