@@ -44,19 +44,26 @@ export function GlassesProvider({ children }: { children: React.ReactNode }) {
             console.log(`[GlassesProvider] Fetching data for: ${userId}...`);
 
             const [statusData, settingsData] = await Promise.all([
-                glassesService.getDeviceStatus('esp32_01', userId),
+                glassesService.getDeviceStatus(),
                 glassesService.getSettings(),
             ]);
             setDeviceStatus(statusData);
             setSettings(settingsData);
 
-            try {
-                const backendMedia = await backendService.fetchMedia(userId);
-                setMedia(backendMedia);
-                await offlineService.saveMedia(backendMedia);
-                setAlbums(organizeIntoAlbums(backendMedia));
-            } catch (backendError: any) {
-                console.warn('[GlassesContext] Failed to fetch media from backend, falling back to offline cache:', backendError?.message || backendError);
+            const online = await offlineService.isOnline();
+            if (online) {
+                try {
+                    const backendMedia = await backendService.fetchMedia(userId);
+                    setMedia(backendMedia);
+                    await offlineService.saveMedia(backendMedia);
+                    setAlbums(organizeIntoAlbums(backendMedia));
+                } catch (backendError) {
+                    console.warn('[GlassesContext] Failed to fetch media from backend, falling back to offline cache:', backendError);
+                    const offlineMedia = await offlineService.getMedia();
+                    setMedia(offlineMedia || []);
+                    setAlbums(organizeIntoAlbums(offlineMedia || []));
+                }
+            } else {
                 const offlineMedia = await offlineService.getMedia();
                 setMedia(offlineMedia || []);
                 setAlbums(organizeIntoAlbums(offlineMedia || []));
@@ -148,21 +155,19 @@ export function GlassesProvider({ children }: { children: React.ReactNode }) {
         setAlbums(organizeIntoAlbums(media));
     }, [media]);
 
+    // Periodically refresh device status to show online/offline updates
     useEffect(() => {
+        if (!isOnline) {
+            setDeviceStatus(prev => prev ? { ...prev, connected: false } : null);
+            return;
+        }
+
         const interval = setInterval(async () => {
             await refreshStatus();
-            try {
-                const userId = user?.id || 'guest_user';
-                const backendMedia = await backendService.fetchMedia(userId);
-                setMedia(backendMedia);
-                await offlineService.saveMedia(backendMedia);
-            } catch (e: any) {
-                console.warn('[GlassesContext] Interval media fetch failed:', e?.message || e);
-            }
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [refreshStatus, user?.id]);
+    }, [isOnline, refreshStatus]);
 
     const syncMedia = useCallback(async () => {
         if (!user || syncing) return 0;
@@ -219,10 +224,9 @@ export function GlassesProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const refreshStatus = useCallback(async () => {
-        const userId = user?.id || 'guest_user';
-        const s = await glassesService.getDeviceStatus('esp32_01', userId);
+        const s = await glassesService.getDeviceStatus();
         setDeviceStatus(s);
-    }, [user?.id]);
+    }, []);
 
     return (
         <GlassesContext.Provider value={{

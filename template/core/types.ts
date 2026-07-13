@@ -31,7 +31,7 @@ export interface ModuleConfig {
 }
 
 // Main configuration interface
-export interface TigoAIConfig extends ModuleConfig {
+export interface OnSpaceConfig extends ModuleConfig {
   supabase: SupabaseConfig;
 }
 
@@ -39,11 +39,11 @@ export interface TigoAIConfig extends ModuleConfig {
 export interface SDKState {
   initialized: boolean;
   enabledModules: string[];
-  config: TigoAIConfig;
+  config: OnSpaceConfig;
 }
 
 // Error type
-export interface TigoAIError {
+export interface OnSpaceError {
   code: string;
   message: string;
   module?: string;

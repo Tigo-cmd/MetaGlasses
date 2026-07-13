@@ -1,11 +1,11 @@
 // @ts-nocheck
-import { TigoAIConfig } from './types';
+import { OnSpaceConfig } from './types';
 
 class ConfigManager {
   private static instance: ConfigManager;
-  private config: TigoAIConfig | null = null;
+  private config: OnSpaceConfig | null = null;
 
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): ConfigManager {
     if (!ConfigManager.instance) {
@@ -14,22 +14,22 @@ class ConfigManager {
     return ConfigManager.instance;
   }
 
-  public initialize(config: TigoAIConfig) {
+  public initialize(config: OnSpaceConfig) {
     if (this.config) {
       console.warn('[Template:Config] Configuration already set, updating...');
     }
-
+    
     this.config = { ...config };
   }
 
-  public getConfig(): TigoAIConfig {
+  public getConfig(): OnSpaceConfig {
     if (!this.config) {
       this.config = this.createDefaultConfig();
     }
     return { ...this.config };
   }
 
-  private createDefaultConfig(): TigoAIConfig {
+  private createDefaultConfig(): OnSpaceConfig {
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -37,7 +37,7 @@ class ConfigManager {
     let supabaseConfig;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('[Template:Config] Supabase environment variables missing, automatically disabling auth module');
+          console.warn('[Template:Config] Supabase environment variables missing, automatically disabling auth module');
       authConfig = false;
     } else {
       authConfig = {
@@ -72,7 +72,7 @@ class ConfigManager {
     return this.getConfig().supabase;
   }
 
-  public updateConfig(updates: Partial<TigoAIConfig>) {
+  public updateConfig(updates: Partial<OnSpaceConfig>) {
     const config = this.getConfig();
     this.config = { ...config, ...updates };
   }
@@ -91,7 +91,7 @@ interface CreateConfigOptions {
   };
 }
 
-export const createConfig = (options: CreateConfigOptions = {}): TigoAIConfig => {
+export const createConfig = (options: CreateConfigOptions = {}): OnSpaceConfig => {
   let authConfig;
   if (options.auth === false) {
     authConfig = false;

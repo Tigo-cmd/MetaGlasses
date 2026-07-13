@@ -4,8 +4,8 @@ import { backendService } from './backendService';
 
 // Real device integration
 export const glassesService = {
-  getDeviceStatus: async (deviceId: string = 'esp32_01', userId: string = 'guest_user'): Promise<DeviceStatus> => {
-    return await backendService.getDeviceStatus(deviceId, userId);
+  getDeviceStatus: async (deviceId: string = 'esp32_01'): Promise<DeviceStatus> => {
+    return await backendService.getDeviceStatus(deviceId);
   },
 
   // Simulate taking a photo (sends command to backend)
