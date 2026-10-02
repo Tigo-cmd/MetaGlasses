@@ -1,0 +1,14 @@
+{
+  "name": "tigoai-dossier",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Generates the TigoAI Smart Glasses project documentation (.docx)",
+  "scripts": {
+    "build": "node build_dossier.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "docx": "^9.8.1",
+    "jszip": "^3.10.2"
+  }
+}
